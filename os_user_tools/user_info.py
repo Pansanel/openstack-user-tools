@@ -25,6 +25,30 @@ from novaclient import client as novaclient
 from prettytable import PrettyTable
 
 
+def get_session():
+    auth_keys = {
+        'auth_url': 'OS_AUTH_URL',
+        'username': 'OS_USERNAME',
+        'password': 'OS_PASSWORD',
+        'project_name': 'OS_TENANT_NAME',
+        'user_domain_name': 'OS_USER_DOMAIN_NAME',
+        'project_domain_name': 'OS_PROJECT_DOMAIN_NAME'
+    }
+    auth_parameters = {}
+    for (key, env) in auth_keys.items():
+        try:
+            auth_parameters[key] = os.environ[env]
+        except KeyError:
+            sys.stderr.write(
+                "You must provide the %s " % key +
+                "via env[%s].\n" % env
+            )
+            return None
+    auth = v3.Password(**auth_parameters)
+    keystone_session = session.Session(auth=auth)
+    return keystone_session
+
+
 def get_user_details(keystone, username):
     user_details = {}
     for user in keystone.users.list():
@@ -83,27 +107,11 @@ def main():
     args = parser.parse_args()
     user = args.username
 
-    auth_keys = {
-        'auth_url': 'OS_AUTH_URL',
-        'username': 'OS_USERNAME',
-        'password': 'OS_PASSWORD',
-        'project_name': 'OS_TENANT_NAME',
-        'user_domain_name': 'OS_USER_DOMAIN_NAME',
-        'project_domain_name': 'OS_PROJECT_DOMAIN_NAME'
-    }
+    keystone_session = get_session()
 
-    auth_parameters = {}
-    for (key, env) in auth_keys.items():
-        try:
-            auth_parameters[key] = os.environ[env]
-        except KeyError:
-            sys.stderr.write(
-                "You must provide the %s " % key +
-                "via env[%s].\n" % env
-            )
-            sys.exit(1)
-    auth = v3.Password(**auth_parameters)
-    keystone_session = session.Session(auth=auth)
+    if not keystone_session:
+        sys.stderr.write('Cannot connect to OpenStack\n')
+        sys.exit(1)
 
     nova = novaclient.Client("2.1", session=keystone_session)
     keystone = keystoneclient.Client(session=keystone_session)
