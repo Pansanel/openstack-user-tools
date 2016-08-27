@@ -20,10 +20,28 @@ import re
 
 class OSConfigFile(object):
     def __init__(self, filename):
-        pass
+        self.config_parser = ConfigParser.ConfigParser()
+        self.config_parser.read(filename)
 
     def get_value(self, section, option):
-        pass
+        try:
+            value = self.config_parser.get(section, option)
+        except:
+            value = None
+
+        return value
 
     def get_mysql_parameters(self):
-        pass
+        mysql_line = self.get_value('database', 'connection')
+        parameters_types = ['user', 'password', 'host', 'database']
+
+        parameters = {}
+
+        if mysql_line: 
+            regex = re.compile('^mysql.*//(.*):(.*)@(.*)/(.*)')
+            capturing_groups = regex.match(mysql_line).groups()
+
+            if len(capturing_groups) == len(parameters_types):
+                parameters = dict(zip(parameters_types, capturing_groups))
+
+        return parameters
