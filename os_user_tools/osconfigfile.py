@@ -37,7 +37,7 @@ class OSConfigFile(object):
 
         parameters = {}
 
-        if mysql_line: 
+        if mysql_line:
             regex = re.compile('^mysql.*//(.*):(.*)@(.*)/(.*)')
             capturing_groups = regex.match(mysql_line).groups()
 

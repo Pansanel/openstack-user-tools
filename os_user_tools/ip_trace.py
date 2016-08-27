@@ -18,7 +18,7 @@ import argparse
 import os
 from prettytable import PrettyTable
 import pymysql
-import sys 
+import sys
 
 import osconfigfile
 
