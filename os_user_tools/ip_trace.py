@@ -52,7 +52,6 @@ def floatingip_traces(db_cursors, ip):
         query = """SELECT user_id FROM instances
                    WHERE uuid='%s'""" % instances_details[0]
         user_id = execute_db_query(db_cursors['nova'], query)
-        print(user_id)
         query = """SELECT name FROM user WHERE id='%s'""" % user_id[0][0]
         user_name = execute_db_query(db_cursors['keystone'], query)
         # Deal with the case where the user has been deleted
