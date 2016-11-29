@@ -20,11 +20,39 @@ from prettytable import PrettyTable
 import pymysql
 import sys
 
+from keystoneauth1.identity import v3
+from keystoneauth1 import session
+from keystoneclient.v3 import client as keystoneclient
+
+
 import osconfigfile
 
-keystone_conf = '/etc/keystone/keystone.conf'
 nova_conf = '/etc/nova/nova.conf'
 neutron_conf = '/etc/neutron/neutron.conf'
+
+
+def get_session():
+    auth_keys = {
+        'auth_url': 'OS_AUTH_URL',
+        'username': 'OS_USERNAME',
+        'password': 'OS_PASSWORD',
+        'project_name': 'OS_TENANT_NAME',
+        'user_domain_name': 'OS_USER_DOMAIN_NAME',
+        'project_domain_name': 'OS_PROJECT_DOMAIN_NAME'
+    }
+    auth_parameters = {}
+    for (key, env) in auth_keys.items():
+        try:
+            auth_parameters[key] = os.environ[env]
+        except KeyError:
+            sys.stderr.write(
+                "If you want to display the username, you must provide" +
+                " the %s via env[%s].\n" % (key, env)
+            )
+            return None
+    auth = v3.Password(**auth_parameters)
+    keystone_session = session.Session(auth=auth)
+    return keystone_session
 
 
 def database_connection(db_parameters):
@@ -42,28 +70,38 @@ def execute_db_query(cursor, query):
     return data
 
 
+def get_username(keystone, user_id):
+    try:
+        user_name = keystone.users.get(user_id).name
+    except:
+        user_name = user_id
+    return user_name
+
+
 def floatingip_traces(db_cursors, ip):
     floatingip_traces = []
     query = """SELECT device_id, start_date FROM floatingip_actions
                WHERE ip_address='%s' AND action='associate'""" % ip
     neutron_data = execute_db_query(db_cursors['neutron'], query)
+
+    keystone_session = get_session()
+    keystone = keystoneclient.Client(session=keystone_session)
+
     for instances_details in neutron_data:
         trace_details = {'end': '-'}
         query = """SELECT user_id FROM instances
                    WHERE uuid='%s'""" % instances_details[0]
         user_id = execute_db_query(db_cursors['nova'], query)
-        query = """SELECT name FROM user WHERE id='%s'""" % user_id[0][0]
-        user_name = execute_db_query(db_cursors['keystone'], query)
-        # Deal with the case where the user has been deleted
-        if not user_name:
-            user_name = user_id
+
+        user_name = get_username(keystone, user_id[0][0])
+
         query = """SELECT start_date FROM floatingip_actions
                    WHERE ip_address='%s' AND action='disassociate'
                    AND device_id='%s'""" % (ip, instances_details[0])
         end_date = execute_db_query(db_cursors['neutron'], query)
         trace_details['device_id'] = instances_details[0]
         trace_details['start'] = instances_details[1]
-        trace_details['user_name'] = user_name[0][0]
+        trace_details['user_name'] = user_name
         if end_date:
             trace_details['end'] = end_date[0][0]
         floatingip_traces.append(trace_details)
@@ -93,11 +131,6 @@ def main():
     args = parser.parse_args()
     ip = args.ip
 
-    keystone_config = osconfigfile.OSConfigFile(keystone_conf)
-    keystone_db_params = keystone_config.get_mysql_parameters()
-    if not keystone_db_params:
-        sys.stderr.write("ERROR: Could not find Keystone DB parameters\n")
-        sys.exit(1)
     nova_config = osconfigfile.OSConfigFile(nova_conf)
     nova_db_params = nova_config.get_mysql_parameters()
     if not nova_db_params:
@@ -110,7 +143,6 @@ def main():
         sys.exit(1)
 
     db_cursors = {}
-    db_cursors['keystone'] = database_connection(keystone_db_params)
     db_cursors['nova'] = database_connection(nova_db_params)
     db_cursors['neutron'] = database_connection(neutron_db_params)
 
