@@ -35,13 +35,17 @@ optional arguments:
 This script requires the [OpenStack triggers](https://github.com/FranceGrilles/openstack-triggers) to be installed. The usage of os-ip-trace is the following:
 
 ```
-usage: os-ip-trace [-h] <IP>
+usage: os-ip-trace [-h] [-a YYYY-MM-DD] [-b YYYY-MM-DD] <IP>
 
 Trace IP usage.
 
 positional arguments:
-  <IP>        IP address to trac.
+  <IP>                  IP address to trace.
 
 optional arguments:
-  -h, --help  show this help message and exit
+  -h, --help            show this help message and exit
+  -a YYYY-MM-DD, --after YYYY-MM-DD
+                        Display only IP disassociated after this date.
+  -b YYYY-MM-DD, --before YYYY-MM-DD
+                        Display only IP associated before this date.
 ```
