@@ -1,0 +1,6 @@
+pbr
+keystoneauth1
+PrettyTable
+PyMySQL
+python-keystoneclient
+python-novaclient
