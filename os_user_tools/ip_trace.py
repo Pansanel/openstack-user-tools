@@ -141,13 +141,13 @@ def valid_date(s):
 def main():
     parser = argparse.ArgumentParser(description="Trace IP usage.")
     parser.add_argument('ip', metavar='<IP>', type=str,
-                        help='IP address to trac.')
+                        help='IP address to trace.')
     parser.add_argument('-a', '--after', metavar='YYYY-MM-DD',
                         type=valid_date, required=False,
-                        help='Display only IP used after this date.')
+                        help='Display only IP disassociated after this date.')
     parser.add_argument('-b', '--before', metavar='YYYY-MM-DD',
                         type=valid_date, required=False,
-                        help='Display only IP used before this date.')
+                        help='Display only IP associated before this date.')
     args = parser.parse_args()
     ip = args.ip
     before = args.before
