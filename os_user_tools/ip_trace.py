@@ -15,6 +15,7 @@
 # under the License.
 
 import argparse
+from datetime import datetime
 import os
 from prettytable import PrettyTable
 import pymysql
@@ -23,7 +24,6 @@ import sys
 from keystoneauth1.identity import v3
 from keystoneauth1 import session
 from keystoneclient.v3 import client as keystoneclient
-
 
 import osconfigfile
 
@@ -46,8 +46,8 @@ def get_session():
             auth_parameters[key] = os.environ[env]
         except KeyError:
             sys.stderr.write(
-                "If you want to display the username, you must provide" +
-                " the %s via env[%s].\n" % (key, env)
+                "If you want to display the username, you must provide " +
+                "the %s via env[%s].\n" % (key, env)
             )
             return None
     auth = v3.Password(**auth_parameters)
@@ -78,10 +78,12 @@ def get_username(keystone, user_id):
     return user_name
 
 
-def floatingip_traces(db_cursors, ip):
+def floatingip_traces(db_cursors, ip, after_date=None, before_date=None):
     floatingip_traces = []
     query = """SELECT device_id, start_date FROM floatingip_actions
                WHERE ip_address='%s' AND action='associate'""" % ip
+    if before_date:
+        query = query + """ AND start_date < '%s'""" % before_date
     neutron_data = execute_db_query(db_cursors['neutron'], query)
 
     keystone_session = get_session()
@@ -99,6 +101,10 @@ def floatingip_traces(db_cursors, ip):
                    WHERE ip_address='%s' AND action='disassociate'
                    AND device_id='%s'""" % (ip, instances_details[0])
         end_date = execute_db_query(db_cursors['neutron'], query)
+        if after_date and end_date:
+            end_datetime = end_date[0][0]
+            if end_datetime < after_date:
+                continue
         trace_details['device_id'] = instances_details[0]
         trace_details['start'] = instances_details[1]
         trace_details['user_name'] = user_name
@@ -124,12 +130,28 @@ def create_array(ip_traces):
     return array
 
 
+def valid_date(s):
+    try:
+        return datetime.strptime(s, "%Y-%m-%d")
+    except ValueError:
+        msg = "Not a valid date: '{0}'.".format(s)
+        raise argparse.ArgumentTypeError(msg)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Trace IP usage.")
     parser.add_argument('ip', metavar='<IP>', type=str,
                         help='IP address to trac.')
+    parser.add_argument('-a', '--after', metavar='YYYY-MM-DD',
+                        type=valid_date, required=False,
+                        help='Display only IP used after this date.')
+    parser.add_argument('-b', '--before', metavar='YYYY-MM-DD',
+                        type=valid_date, required=False,
+                        help='Display only IP used before this date.')
     args = parser.parse_args()
     ip = args.ip
+    before = args.before
+    after = args.after
 
     nova_config = osconfigfile.OSConfigFile(nova_conf)
     nova_db_params = nova_config.get_mysql_parameters()
@@ -146,7 +168,8 @@ def main():
     db_cursors['nova'] = database_connection(nova_db_params)
     db_cursors['neutron'] = database_connection(neutron_db_params)
 
-    ip_traces = floatingip_traces(db_cursors, ip)
+    ip_traces = floatingip_traces(db_cursors, ip,
+                                  after_date=after, before_date=before)
 
     array = create_array(ip_traces)
 
