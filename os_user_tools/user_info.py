@@ -44,7 +44,7 @@ def get_session():
                 "via env[%s].\n" % env
             )
             return None
-    if os.environ.has_key('OS_CACERT'):
+    if 'OS_CACERT' in os.environ:
         verify = os.environ['OS_CACERT']
     else:
         verify = True
