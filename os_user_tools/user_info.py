@@ -44,8 +44,12 @@ def get_session():
                 "via env[%s].\n" % env
             )
             return None
+    if os.environ.has_key('OS_CACERT'):
+        verify = os.environ['OS_CACERT']
+    else:
+        verify = True
     auth = v3.Password(**auth_parameters)
-    keystone_session = session.Session(auth=auth)
+    keystone_session = session.Session(auth=auth, verify=verify)
     return keystone_session
 
 
