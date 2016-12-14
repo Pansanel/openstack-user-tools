@@ -15,7 +15,6 @@
 # under the License.
 
 import ConfigParser
-import re
 
 
 class OSConfigFile(object):
@@ -32,16 +31,6 @@ class OSConfigFile(object):
         return value
 
     def get_mysql_parameters(self):
-        mysql_line = self.get_value('database', 'connection')
-        parameters_types = ['user', 'password', 'host', 'database']
+        mysql_params = self.get_value('database', 'connection')
 
-        parameters = {}
-
-        if mysql_line:
-            regex = re.compile('^mysql.*//(.*):(.*)@(.*)/(.*)')
-            capturing_groups = regex.match(mysql_line).groups()
-
-            if len(capturing_groups) == len(parameters_types):
-                parameters = dict(zip(parameters_types, capturing_groups))
-
-        return parameters
+        return mysql_params

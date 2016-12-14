@@ -18,7 +18,7 @@ import argparse
 from datetime import datetime
 import os
 from prettytable import PrettyTable
-import pymysql
+import sqlalchemy
 import sys
 
 from keystoneauth1.identity import v3
@@ -50,7 +50,7 @@ def get_session():
                 "the %s via env[%s].\n" % (key, env)
             )
             return None
-    if OS_CACERT in os.environ:
+    if 'OS_CACERT' in os.environ:
         verify = os.environ['OS_CACERT']
     else:
         verify = True
@@ -59,18 +59,11 @@ def get_session():
     return keystone_session
 
 
-def database_connection(db_parameters):
-    connection = pymysql.connect(user=db_parameters['user'],
-                                 password=db_parameters['password'],
-                                 host=db_parameters['host'],
-                                 database=db_parameters['database'])
-    cursor = connection.cursor()
-    return cursor
-
-
-def execute_db_query(cursor, query):
-    cursor.execute(query)
-    data = cursor.fetchall()
+def execute_db_query(db_params, query):
+    engine = sqlalchemy.engine.create_engine(db_params)
+    results = engine.execute(query)
+    data = results.fetchall()
+    engine.dispose()
     return data
 
 
@@ -82,13 +75,13 @@ def get_username(keystone, user_id):
     return user_name
 
 
-def floatingip_traces(db_cursors, ip, after_date=None, before_date=None):
+def floatingip_traces(db_params, ip, after_date=None, before_date=None):
     floatingip_traces = []
     query = """SELECT device_id, start_date FROM floatingip_actions
                WHERE ip_address='%s' AND action='associate'""" % ip
     if before_date:
         query = query + """ AND start_date < '%s'""" % before_date
-    neutron_data = execute_db_query(db_cursors['neutron'], query)
+    neutron_data = execute_db_query(db_params['neutron'], query)
 
     keystone_session = get_session()
     keystone = keystoneclient.Client(session=keystone_session)
@@ -97,14 +90,14 @@ def floatingip_traces(db_cursors, ip, after_date=None, before_date=None):
         trace_details = {'end': '-'}
         query = """SELECT user_id FROM instances
                    WHERE uuid='%s'""" % instances_details[0]
-        user_id = execute_db_query(db_cursors['nova'], query)
+        user_id = execute_db_query(db_params['nova'], query)
 
         user_name = get_username(keystone, user_id[0][0])
 
         query = """SELECT start_date FROM floatingip_actions
                    WHERE ip_address='%s' AND action='disassociate'
                    AND device_id='%s'""" % (ip, instances_details[0])
-        end_date = execute_db_query(db_cursors['neutron'], query)
+        end_date = execute_db_query(db_params['neutron'], query)
         if after_date and end_date:
             end_datetime = end_date[0][0]
             if end_datetime < after_date:
@@ -168,11 +161,11 @@ def main():
         sys.stderr.write("ERROR: Could not find Neutron DB parameters\n")
         sys.exit(1)
 
-    db_cursors = {}
-    db_cursors['nova'] = database_connection(nova_db_params)
-    db_cursors['neutron'] = database_connection(neutron_db_params)
+    db_params = {}
+    db_params['nova'] = nova_db_params
+    db_params['neutron'] = neutron_db_params
 
-    ip_traces = floatingip_traces(db_cursors, ip,
+    ip_traces = floatingip_traces(db_params, ip,
                                   after_date=after, before_date=before)
 
     array = create_array(ip_traces)
